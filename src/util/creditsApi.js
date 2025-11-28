@@ -1,9 +1,16 @@
+const isBrowser = typeof window !== 'undefined';
+
 const baseUrl = () => {
   const raw = process.env.REACT_APP_CREDITS_API_BASE_URL;
   if (raw) {
     return raw.replace(/\/$/, '');
   }
-  return window.location.origin;
+
+  if (isBrowser) {
+    return window.location.origin;
+  }
+
+  return '';
 };
 
 const jsonHeaders = {
@@ -26,6 +33,10 @@ const handleResponse = async res => {
 };
 
 const get = (path, { sharetribeUserId } = {}) => {
+  if (!isBrowser) {
+    return Promise.resolve({});
+  }
+
   const url = new URL(`${baseUrl()}${path}`);
   if (sharetribeUserId) {
     url.searchParams.set('sharetribeUserId', sharetribeUserId);
@@ -40,6 +51,10 @@ const get = (path, { sharetribeUserId } = {}) => {
 };
 
 const post = (path, body) => {
+  if (!isBrowser) {
+    return Promise.resolve({});
+  }
+
   return window
     .fetch(`${baseUrl()}${path}`, {
       method: 'POST',
@@ -51,6 +66,10 @@ const post = (path, body) => {
 
 export const fetchMyCredits = sharetribeUserId =>
   get('/api/credits/me', { sharetribeUserId }).then(data => {
+    if (!data || typeof data !== 'object') {
+      return { raw: data, credits: 0 };
+    }
+
     const credits =
       data.balanceCredits ??
       data.credits ??
@@ -66,9 +85,12 @@ export const fetchMyCredits = sharetribeUserId =>
   });
 
 export const fetchCreditHistory = sharetribeUserId =>
-  get('/api/credits/history', { sharetribeUserId }).then(
-    data => data.history || []
-  );
+  get('/api/credits/history', { sharetribeUserId }).then(data => {
+    if (!data || typeof data !== 'object') {
+      return [];
+    }
+    return data.history || [];
+  });
 
 export const createPlanCheckout = (sharetribeUserId, planSlug) =>
   post('/api/credits/purchase', { sharetribeUserId, planSlug });
@@ -92,4 +114,3 @@ export const startPlanChange = (sharetribeUserId, planSlug) =>
 
 export const cancelSubscription = sharetribeUserId =>
   post('/api/credits/cancel-subscription', { sharetribeUserId });
-
