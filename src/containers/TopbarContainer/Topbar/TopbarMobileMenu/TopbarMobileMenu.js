@@ -16,6 +16,7 @@ import {
   NamedLink,
   NotificationBadge,
 } from '../../../../components';
+import CreditsBadge from '../CreditBadge';
 
 import css from './TopbarMobileMenu.module.css';
 
@@ -170,6 +171,10 @@ const TopbarMobileMenu = props => {
           <FormattedMessage id="TopbarMobileMenu.logoutLink" />
         </InlineTextButton>
 
+        <div className={css.creditsWrapper}>
+          <CreditsBadge currentUser={currentUser} />
+        </div>
+
         <div className={css.accountLinksWrapper}>
           <NamedLink
             className={classNames(css.inbox, currentPageClass(`InboxPage:${inboxTab}`))}
@@ -179,12 +184,24 @@ const TopbarMobileMenu = props => {
             <FormattedMessage id="TopbarMobileMenu.inboxLink" />
             {notificationCountBadge}
           </NamedLink>
+          <NamedLink
+            className={classNames(css.navigationLink, currentPageClass('PricingPage'))}
+            name="PricingPage"
+          >
+            <FormattedMessage id="TopbarMobileMenu.pricingLink" />
+          </NamedLink>
           {manageListingsLinkMaybe}
           <NamedLink
             className={classNames(css.navigationLink, currentPageClass('ProfileSettingsPage'))}
             name="ProfileSettingsPage"
           >
             <FormattedMessage id="TopbarMobileMenu.profileSettingsLink" />
+          </NamedLink>
+          <NamedLink
+            className={classNames(css.navigationLink, currentPageClass('CreditsHistoryPage'))}
+            name="CreditsHistoryPage"
+          >
+            <FormattedMessage id="TopbarMobileMenu.creditHistoryLink" />
           </NamedLink>
           <NamedLink
             className={classNames(css.navigationLink, currentPageClass('AccountSettingsPage'))}

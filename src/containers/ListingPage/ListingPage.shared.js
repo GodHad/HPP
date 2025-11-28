@@ -244,6 +244,7 @@ export const handleSubmit = parameters => values => {
     quantity: quantityRaw,
     seats: seatsRaw,
     deliveryMethod,
+    additionalDogs: additionalDogsRaw,
     ...otherOrderData
   } = values;
 
@@ -270,6 +271,16 @@ export const handleSubmit = parameters => values => {
   const seatsMaybe = Number.isInteger(seats) ? { seats } : {};
   const deliveryMethodMaybe = deliveryMethod ? { deliveryMethod } : {};
 
+  const additionalDogs =
+    typeof additionalDogsRaw === 'number'
+      ? additionalDogsRaw
+      : additionalDogsRaw
+      ? parseInt(additionalDogsRaw, 10)
+      : 0;
+
+  const additionalDogsMaybe =
+    Number.isFinite(additionalDogs) && additionalDogs > 0 ? { additionalDogs } : {};
+
   const initialValues = {
     listing,
     orderData: {
@@ -278,6 +289,7 @@ export const handleSubmit = parameters => values => {
       ...quantityMaybe,
       ...seatsMaybe,
       ...deliveryMethodMaybe,
+      ...additionalDogsMaybe,
       ...otherOrderData,
     },
     confirmPaymentError: null,

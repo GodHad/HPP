@@ -5,6 +5,8 @@ import { denormalisedResponseEntities } from '../../util/data';
 import { storableError } from '../../util/errors';
 import * as log from '../../util/log';
 import { setCurrentUserHasOrders, fetchCurrentUser } from '../../ducks/user.duck';
+import { useCreditsForBooking, fetchMyCredits } from '../../util/creditsApi';
+import { addAvailabilityExceptionThunk } from '../EditListingPage/EditListingPage.duck';
 
 // ================ Async thunks ================ //
 
@@ -18,12 +20,16 @@ const initiateOrderPayloadCreator = (
   // If we already have a transaction ID, we should transition, not initiate.
   const isTransition = !!transactionId;
 
-  const { deliveryMethod, quantity, bookingDates, ...otherOrderParams } = orderParams;
+  const { deliveryMethod, quantity, bookingDates, priceVariantName, additionalDogs, ...otherOrderParams } = orderParams;
   const quantityMaybe = quantity ? { stockReservationQuantity: quantity } : {};
   const bookingParamsMaybe = bookingDates || {};
 
   // Parameters only for client app's server
-  const orderData = deliveryMethod ? { deliveryMethod } : {};
+  const orderData = {
+    ...(deliveryMethod ? { deliveryMethod } : {}),
+    ...(priceVariantName ? { priceVariantName } : {}),
+    ...(Number.isFinite(additionalDogs) && additionalDogs >0 ? {additionalDogs} : {})
+  };
 
   // Parameters for Marketplace API
   const transitionParams = {
@@ -119,9 +125,9 @@ export const initiateOrder = (
 /////////////////////
 // Confirm Payment //
 /////////////////////
-const confirmPaymentPayloadCreator = (
+const confirmPaymentPayloadCreator = async (
   { transactionId, transitionName, transitionParams = {} },
-  { extra: sdk, rejectWithValue }
+  { dispatch, getState, extra: sdk, rejectWithValue }
 ) => {
   const bodyParams = {
     id: transactionId,
@@ -132,6 +138,30 @@ const confirmPaymentPayloadCreator = (
     include: ['booking', 'provider'],
     expand: true,
   };
+
+  try {
+    const response = await sdk.transactions.transition(bodyParams, queryParams);
+    const order = response.data.data;
+
+    try {
+      const state = getState();
+      const currentUser = state.user?.currentUser;
+      const sharetribeUserId = currentUser?.id?.uuid;
+      const payinTotal = order?.attributes?.payinTotal;
+
+      if(sharetribeUserId && payinTotal && payinTotal.amount > 0) {
+        await useCreditsForBooking(sharetribeUserId, order.id.uuid, payinTotal.amount);
+      }
+    } catch (e) {
+      log.error(e, 'Credits-booking-debit-failed', {txId: order?.id?.uuid});
+    }
+
+    return order;
+  } catch(e) {
+    const transactionIdMayBe = transactionId ? {transactionId: transactionId.uuid} : {};
+    log.error(e, 'Initiate-order-failed', transactionIdMaybe);
+    return rejectWithValue(storableError(e));
+  }
 
   return sdk.transactions
     .transition(bodyParams, queryParams)
@@ -291,6 +321,7 @@ const speculateTransactionPayloadCreator = (
     priceVariantName,
     quantity,
     bookingDates,
+    additionalDogs,
     ...otherOrderParams
   } = orderParams;
   const quantityMaybe = quantity ? { stockReservationQuantity: quantity } : {};
@@ -300,6 +331,7 @@ const speculateTransactionPayloadCreator = (
   const orderData = {
     ...(deliveryMethod ? { deliveryMethod } : {}),
     ...(priceVariantName ? { priceVariantName } : {}),
+    ...(Number.isFinite(additionalDogs) && additionalDogs > 0 ? {additionalDogs} : {})
   };
 
   // Parameters for Marketplace API

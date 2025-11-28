@@ -106,6 +106,11 @@ const getOrderParams = (pageData, shippingDetails, optionalPaymentParams, config
   const quantityMaybe = quantity ? { quantity } : {};
   const seats = pageData.orderData?.seats;
   const seatsMaybe = seats ? { seats } : {};
+
+  const additionalDogsRaw = pageData.orderData?.additionalDogs;
+  const additionalDogs = typeof additionalDogsRaw === 'number' ? additionalDogsRaw : additionalDogsRaw ? parseInt(additionalDogsRaw, 10) : 0;
+  const additionalDogsMaybe = Number.isFinite(additionalDogs) && additionalDogs > 0 ? {additionalDogs} : {};
+
   const deliveryMethod = pageData.orderData?.deliveryMethod;
   const deliveryMethodMaybe = deliveryMethod ? { deliveryMethod } : {};
   const { listingType, unitType, priceVariants } = pageData?.listing?.attributes?.publicData || {};
@@ -140,6 +145,7 @@ const getOrderParams = (pageData, shippingDetails, optionalPaymentParams, config
     ...quantityMaybe,
     ...seatsMaybe,
     ...bookingDatesMaybe(pageData.orderData?.bookingDates),
+    ...additionalDogsMaybe,
     ...priceVariantNameMaybe,
     ...protectedDataMaybe,
     ...optionalPaymentParams,

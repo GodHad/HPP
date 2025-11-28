@@ -30,6 +30,7 @@ import LineItemProviderCommissionRefundMaybe from './LineItemProviderCommissionR
 import LineItemRefundMaybe from './LineItemRefundMaybe';
 import LineItemTotalPrice from './LineItemTotalPrice';
 import LineItemUnknownItemsMaybe from './LineItemUnknownItemsMaybe';
+import LineItemAdditionalDogFeeMaybe from './LineItemAdditionalDogFeeMaybe';
 
 import css from './OrderBreakdown.module.css';
 
@@ -54,6 +55,12 @@ export const OrderBreakdownComponent = props => {
   const unitLineItem = lineItems.find(
     item => LISTING_UNIT_TYPES.includes(item.code) && !item.reversal
   );
+
+  const ADDITIONAL_DOG_FEE_CODE = 'line-item/additional-dog-fee';
+  const lineItemsForUnknow = lineItems.filter(
+    item => item.code !== ADDITIONAL_DOG_FEE_CODE
+  );
+
   // Line-item code that matches with base unit: day, night, hour, fixed, item
   const lineItemUnitType = unitLineItem?.code;
   const dateType = [LINE_ITEM_HOUR, LINE_ITEM_FIXED].includes(lineItemUnitType)
@@ -114,9 +121,10 @@ export const OrderBreakdownComponent = props => {
       />
 
       <LineItemBasePriceMaybe lineItems={lineItems} code={lineItemUnitType} intl={intl} />
+      <LineItemAdditionalDogFeeMaybe lineItems={lineItems} userRole={userRole} intl={intl} />
       <LineItemShippingFeeMaybe lineItems={lineItems} intl={intl} />
       <LineItemPickupFeeMaybe lineItems={lineItems} intl={intl} />
-      <LineItemUnknownItemsMaybe lineItems={lineItems} isProvider={isProvider} intl={intl} />
+      <LineItemUnknownItemsMaybe lineItems={lineItemsForUnknow} isProvider={isProvider} intl={intl} />
 
       <LineItemSubTotalMaybe
         lineItems={lineItems}

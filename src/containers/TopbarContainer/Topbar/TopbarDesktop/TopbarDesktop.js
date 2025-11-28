@@ -13,6 +13,7 @@ import {
   MenuItem,
   NamedLink,
 } from '../../../../components';
+import CreditsBadge from '../CreditBadge';
 
 import TopbarSearchForm from '../TopbarSearchForm/TopbarSearchForm';
 import CustomLinksMenu from './CustomLinksMenu/CustomLinksMenu';
@@ -84,6 +85,15 @@ const ProfileMenu = ({ currentPage, currentUser, onLogout, showManageListingsLin
             <FormattedMessage id="TopbarDesktop.profileSettingsLink" />
           </NamedLink>
         </MenuItem>
+        <MenuItem key="CreditsHistoryPage">
+          <NamedLink
+            className={classNames(css.menuLink, currentPageClass('CreditsHistoryPage'))}
+            name="CreditsHistoryPage"
+          >
+            <span className={css.menuItemBorder} />
+            <FormattedMessage id="TopbarDesktop.creditHistoryLink" />
+          </NamedLink>
+        </MenuItem>
         <MenuItem key="AccountSettingsPage">
           <NamedLink
             className={classNames(css.menuLink, currentPageClass('AccountSettingsPage'))}
@@ -152,6 +162,7 @@ const TopbarDesktop = props => {
   const marketplaceName = config.marketplaceName;
   const authenticatedOnClientSide = mounted && isAuthenticated;
   const isAuthenticatedOrJustHydrated = isAuthenticated || !mounted;
+  const creditBadgeMaybe = authenticatedOnClientSide && currentUser ? (<CreditsBadge currentUser={currentUser} className={css.creditsBadge} />) : null;
 
   const giveSpaceForSearch = customLinks == null || customLinks?.length === 0;
   const classes = classNames(rootClassName || css.root, className);
@@ -202,6 +213,12 @@ const TopbarDesktop = props => {
       />
       {searchFormMaybe}
 
+       <NamedLink name="PricingPage" className={css.topbarLink}>
+        <span className={css.topbarLinkLabel}>
+          <FormattedMessage id="TopbarDesktop.pricingLink" />
+        </span>
+      </NamedLink>
+
       <CustomLinksMenu
         currentPage={currentPage}
         customLinks={customLinks}
@@ -209,8 +226,8 @@ const TopbarDesktop = props => {
         hasClientSideContentReady={authenticatedOnClientSide || !isAuthenticatedOrJustHydrated}
         showCreateListingsLink={showCreateListingsLink}
       />
-
       {inboxLinkMaybe}
+      {creditBadgeMaybe}
       {profileMenuMaybe}
       {signupLinkMaybe}
       {loginLinkMaybe}

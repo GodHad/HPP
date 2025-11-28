@@ -307,3 +307,23 @@
     }
   }
 }
+.creditsBadge {
+  margin-right: 1.5rem; /* space before Inbox */
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  border-bottom: 0px solid;
+  transition: var(--transitionStyleButton);
+
+  font-weight: var(--fontWeightMedium);
+  font-size: 14px;
+  line-height: 18px;
+  letter-spacing: 0;
+  color: var(--colorGrey700);
+
+  height: 100%;
+  padding: 0 12px 0 12px;
+  margin: 0;
+}

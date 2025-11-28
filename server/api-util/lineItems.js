@@ -1,3 +1,4 @@
+const { currencyFormatting } = require('../../src/config/settingsCurrency');
 const {
   calculateQuantityFromDates,
   calculateQuantityFromHours,
@@ -7,6 +8,8 @@ const {
 } = require('./lineItemHelpers');
 const { types } = require('sharetribe-flex-sdk');
 const { Money } = types;
+const ADDITIONAL_DOG_FEE_IN_SUBUNITS = 500;
+const ADDITIONAL_DOG_LINE_ITEM_CODE = 'line-item/additional-dog-fee';
 
 /**
  * Get quantity and add extra line-items that are related to delivery method
@@ -227,11 +230,32 @@ exports.transactionLineItems = (listing, orderData, providerCommission, customer
     includeFor: ['customer', 'provider'],
   };
 
+  const additionalDogsRaw = 
+    orderData && typeof orderData.additionalDogs !== 'undefined'
+    ? orderData.additionalDogs
+    : 0;
+
+  const additionalDogs = typeof additionalDogsRaw === 'number'
+    ? additionalDogsRaw : additionalDogsRaw ? parseInt(additionalDogsRaw, 10) : 0;
+
+  let extraLineItemsWithDogs = extraLineItems || [];
+
+  if(isBookable && additionalDogs > 0) {
+    const dogFeeLineItem = {
+      code: ADDITIONAL_DOG_LINE_ITEM_CODE,
+      unitPrice: new Money(ADDITIONAL_DOG_FEE_IN_SUBUNITS, currency),
+      quantity: additionalDogs,
+      includeFor: ['customer', 'provider']
+    }
+
+    extraLineItemsWithDogs = [...extraLineItemsWithDogs, dogFeeLineItem];
+  }
+
   // Let's keep the base price (order) as first line item and provider and customer commissions as last.
   // Note: the order matters only if OrderBreakdown component doesn't recognize line-item.
   const lineItems = [
     order,
-    ...extraLineItems,
+    ...extraLineItemsWithDogs,
     ...getProviderCommissionMaybe(providerCommission, order, currency),
     ...getCustomerCommissionMaybe(customerCommission, order, currency),
   ];

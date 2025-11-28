@@ -1,0 +1,60 @@
+@import '../../styles/customMediaQueries.css';
+
+.root {
+}
+
+.content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px 24px 80px;
+}
+
+.headingContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.heading {
+  composes: h3 from global;
+}
+
+.infoText {
+  font-size: 14px;
+  margin-top: 16px;
+}
+
+.errorText {
+  composes: infoText;
+  color: var(--colorFail);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.colDate,
+.colType,
+.colAmount,
+.colReason {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--colorGrey100);
+  font-size: 14px;
+  text-align: left;
+}
+
+.colAmount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.amountCredit {
+  color: var(--colorSuccess);
+}
+
+.amountDebit {
+  color: var(--colorFail);
+}

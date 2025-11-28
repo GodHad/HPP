@@ -44,6 +44,14 @@ const UserNav = props => {
       },
     },
     {
+      text: <FormattedMessage id="UserNav.creditHistory" />,
+      selected: currentPage === 'CreditsHistoryPage',
+      disabled: false,
+      linkProps: {
+        name: 'CreditsHistoryPage',
+      },
+    },
+    {
       text: <FormattedMessage id="UserNav.accountSettings" />,
       selected: ACCOUNT_SETTINGS_PAGES.includes(currentPage),
       disabled: false,

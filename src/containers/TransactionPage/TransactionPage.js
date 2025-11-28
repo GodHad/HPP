@@ -18,6 +18,7 @@ import {
 import { timestampToDate } from '../../util/dates';
 import { createSlug } from '../../util/urlHelpers';
 import { requireListingImage } from '../../util/configHelpers';
+const CREDITS_API_BASE = process.env.REACT_APP_CREDITS_API_BASE_URL;
 
 import {
   INQUIRY_PROCESS_NAME,
@@ -251,6 +252,80 @@ const getDataValidationResult = (transaction, process) => {
  * @param {Array<propTypes.transition>} props.nextTransitions - The next transitions
  * @returns {JSX.Element}
  */
+
+const withCreditFinalize = (onTransition, transaction, transactionRole) => {
+  return (txId, transitionName, params) => {
+    if (!transaction || !transaction.id) {
+      return onTransition(txId, transitionName, params);
+    }
+
+    const processName = resolveLatestProcessName(
+      transaction?.attributes?.processName
+    );
+
+    let process = null;
+    try {
+      process = processName ? getProcess(processName) : null;
+    } catch (e) {
+      process = null;
+    }
+
+    const isProviderRole = transactionRole === PROVIDER;
+    const isBooking = isBookingProcess(processName);
+    const acceptTransition = process?.transitions?.ACCEPT;
+    const declineTransition = process?.transitions?.DECLINE;
+
+    const shouldFinalize =
+      isBooking &&
+      isProviderRole &&
+      (transitionName === acceptTransition ||
+        transitionName === declineTransition);
+
+    if (!shouldFinalize) {
+      return onTransition(txId, transitionName, params);
+    }
+
+    const decision =
+      transitionName === acceptTransition ? 'accepted' : 'declined';
+    const sharetribeUserId = transaction?.customer?.id?.uuid;
+    const bookingId = transaction?.id?.uuid;
+
+    if (!sharetribeUserId || !bookingId) {
+      console.error(
+        'Missing sharetribeUserId or bookingId for credit finalize'
+      );
+      return onTransition(txId, transitionName, params);
+    }
+
+    return fetch(`${CREDITS_API_BASE}/api/credits/booking-finalize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sharetribeUserId, bookingId, decision }),
+    })
+      .then(async res => {
+        if (!res.ok) {
+          let message = `booking-finalize failed with status ${res.status}`;
+          try {
+            const body = await res.json();
+            if (body && body.error) message = body.error;
+          } catch (e) {
+          }
+          console.error(message);
+          throw new Error(message);
+        }
+
+        console.log(
+          `booking-finalize (${decision}) OK for tx ${bookingId}, now running transition ${transitionName}`
+        );
+        return onTransition(txId, transitionName, params);
+      })
+      .catch(err => {
+        console.error('booking-finalize error', err);
+        throw err;
+      });
+  };
+};
+
 export const TransactionPageComponent = props => {
   const [isDisputeModalOpen, setDisputeModalOpen] = useState(false);
   const [disputeSubmitted, setDisputeSubmitted] = useState(false);
@@ -560,6 +635,12 @@ export const TransactionPageComponent = props => {
     routes: routeConfiguration,
   });
 
+  const wrappedOnTransition = withCreditFinalize(
+    onTransition,
+    transaction,
+    transactionRole
+  );
+
   const stateData = isDataAvailable
     ? getStateData(
         {
@@ -570,7 +651,7 @@ export const TransactionPageComponent = props => {
           transitionError,
           sendReviewInProgress,
           sendReviewError,
-          onTransition,
+          onTransition: wrappedOnTransition,
           onOpenReviewModal,
           onOpenRequestChangesModal,
           onOpenMakeCounterOfferModal,
@@ -581,6 +662,7 @@ export const TransactionPageComponent = props => {
         process
       )
     : {};
+
 
   const hasLineItems = transaction?.attributes?.lineItems?.length > 0;
   const unitLineItem = hasLineItems

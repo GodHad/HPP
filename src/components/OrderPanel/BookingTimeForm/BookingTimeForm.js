@@ -28,7 +28,7 @@ const handleFetchLineItems = props => formValues => {
     onFetchTransactionLineItems,
     seatsEnabled,
   } = props;
-  const { bookingStartTime, bookingEndTime, seats, priceVariantName } = formValues.values;
+  const { bookingStartTime, bookingEndTime, seats, priceVariantName, additionalDogs } = formValues.values;
   const startDate = bookingStartTime ? timestampToDate(bookingStartTime) : null;
   const endDate = bookingEndTime ? timestampToDate(bookingEndTime) : null;
 
@@ -39,12 +39,16 @@ const handleFetchLineItems = props => formValues => {
 
   const priceVariantMaybe = priceVariantName ? { priceVariantName } : {};
 
+  const additionalDogsNumber = additionalDogs != null ? Number(additionalDogs) : 0;
+  const additionalDogsMaybe = Number.isFinite(additionalDogsNumber) && additionalDogsNumber > 0 ? {additionalDogs: additionalDogsNumber} : {};
+
   if (bookingStartTime && bookingEndTime && isStartBeforeEnd && !fetchLineItemsInProgress) {
     const orderData = {
       bookingStart: startDate,
       bookingEnd: endDate,
       ...seatsMaybe,
       ...priceVariantMaybe,
+      ...additionalDogsMaybe
     };
     onFetchTransactionLineItems({
       orderData,
@@ -151,6 +155,7 @@ export const BookingTimeForm = props => {
         const startDate = startTime ? timestampToDate(startTime) : null;
         const endDate = endTime ? timestampToDate(endTime) : null;
         const priceVariantName = values?.priceVariantName || null;
+        const additionalDogs = values?.additionalDogs;
 
         // This is the place to collect breakdown estimation data. See the
         // EstimatedCustomerBreakdownMaybe component to change the calculations
@@ -207,6 +212,43 @@ export const BookingTimeForm = props => {
                 handleFetchLineItems={onHandleFetchLineItems}
               />
             ) : null}
+
+            <FieldSelect
+              name="additionalDogs"
+              id="additionalDogs"
+              disabled={!startTime || !endTime}
+              showLabelAsDisabled={!startTime || !endTime}
+              label={intl.formatMessage({ id: 'BookingTimeForm.additionalDogs.label' })}
+              className={css.fieldAdditionalDogs}
+              onChange={val => {
+                onHandleFetchLineItems({
+                  values: {
+                    priceVariantName,
+                    bookingStartTime: startTime,
+                    bookingEndTime: endTime,
+                    seats: seatsEnabled ? values?.seats : null,
+                    additionalDogs: val,
+                  },
+                });
+              }}
+            >
+              <option value="0">
+                {intl.formatMessage({ id: 'BookingTimeForm.additionalDogs.option0' })}
+              </option>
+              <option value="1">
+                {intl.formatMessage({ id: 'BookingTimeForm.additionalDogs.option1' })}
+              </option>
+              <option value="2">
+                {intl.formatMessage({ id: 'BookingTimeForm.additionalDogs.option2' })}
+              </option>
+              <option value="3">
+                {intl.formatMessage({ id: 'BookingTimeForm.additionalDogs.option3' })}
+              </option>
+              <option value="4">
+                {intl.formatMessage({ id: 'BookingTimeForm.additionalDogs.option4' })}
+              </option>
+            </FieldSelect>
+
             {seatsEnabled ? (
               <FieldSelect
                 name="seats"
