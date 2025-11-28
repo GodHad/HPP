@@ -20,9 +20,25 @@ import {
   cancelSubscription
 } from '../../util/creditsApi';
 
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import css from './PricingPage.module.css';
+
+const isBrowser = typeof window !== 'undefined';
+
+let ToastContainer = () => null;
+let toast = {
+  error: () => {},
+  success: () => {},
+  info: () => {},
+};
+
+if (isBrowser) {
+  // eslint-disable-next-line global-require
+  const toastify = require('react-toastify');
+  ToastContainer = toastify.ToastContainer;
+  toast = toastify.toast;
+  // eslint-disable-next-line global-require
+  require('react-toastify/dist/ReactToastify.css');
+}
 
 // The slugs must match credit_plans.slug in your DB
 const CREDIT_PLANS = [
