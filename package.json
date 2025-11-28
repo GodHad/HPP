@@ -3,7 +3,6 @@
   "version": "10.3.0",
   "private": true,
   "license": "Apache-2.0",
-  "type": "module",
   "dependencies": {
     "@loadable/component": "^5.16.4",
     "@loadable/server": "^5.16.5",
