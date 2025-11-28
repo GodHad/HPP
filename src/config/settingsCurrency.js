@@ -1,6 +1,6 @@
 // See: https://en.wikipedia.org/wiki/ISO_4217
 // See: https://stripe.com/docs/currencies
-export const stripeSupportedCurrencies = [
+const stripeSupportedCurrencies = [
   'AUD',
   'BGN',
   'CAD',
@@ -27,7 +27,7 @@ export const stripeSupportedCurrencies = [
 // they are not currently compatible with the existing email templates, which assume a divisor of 100.
 // If you add support for currencies with a subunit divisor of 1000, be sure to
 // update the email templates to correctly format these currencies.
-export const subUnitDivisors = {
+const subUnitDivisors = {
   AUD: 100, // Australian dollar
   BGN: 100, // Bulgarian lev
   CAD: 100, // Canadian dollar
@@ -183,7 +183,7 @@ export const subUnitDivisors = {
  *
  * @param {string} currency
  */
-export const currencyFormatting = (currency, options) => {
+const currencyFormatting = (currency, options) => {
   const { enforceSupportedCurrencies = true } = options || {};
   if (enforceSupportedCurrencies && !subUnitDivisors[currency]) {
     const currencies = Object.keys(subUnitDivisors);
@@ -213,3 +213,9 @@ export const currencyFormatting = (currency, options) => {
         maximumFractionDigits: 2,
       };
 };
+
+module.exports = {
+  stripeSupportedCurrencies,
+  subUnitDivisors,
+  currencyFormatting,
+}
