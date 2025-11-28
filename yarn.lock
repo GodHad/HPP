@@ -9870,7 +9870,7 @@ shallowequal@^1.1.0:
 
 sharetribe-flex-sdk@^1.21.1:
   version "1.21.1"
-  resolved "https://registry.npmjs.org/sharetribe-flex-sdk/-/sharetribe-flex-sdk-1.21.1.tgz"
+  resolved "https://registry.yarnpkg.com/sharetribe-flex-sdk/-/sharetribe-flex-sdk-1.21.1.tgz#49f046db67a19d09ecf985d1c136b343c3f2b11b"
   integrity sha512-3wqUhcqhfglnB2ndMwRzutXQyY3VzYr8vMktDKEINrLZ56X576tvN0ky+x70ichzGplv2TEk6nEdPWwb+41bbw==
   dependencies:
     axios "^1.5.1"

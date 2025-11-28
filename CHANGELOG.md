@@ -14,6 +14,12 @@ way to update this template, but currently, we follow a pattern:
 
 ## Upcoming version 2025-XX-XX
 
+- [add] Add accessibility improvements (Modals, filters, etc.).
+  [#716](https://github.com/sharetribe/web-template/pull/716)
+- [change] Upgrade Sharetribe SDK to 1.22.0.
+  [#715](https://github.com/sharetribe/web-template/pull/715)
+- [fix] ListingPageCoverPhoto: fix payoutDetailsWarning message.
+  [#714](https://github.com/sharetribe/web-template/pull/714)
 - [fix] AuthenticationPage: fix a bug with long words in the title on mobile layout.
   [#711](https://github.com/sharetribe/web-template/pull/711)
 - [add] Add currently available translations for DE, ES, FR.
