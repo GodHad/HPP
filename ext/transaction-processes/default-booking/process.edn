@@ -13,6 +13,15 @@
     {:name :action/stripe-create-payment-intent}],
    :to :state/pending-payment,
    :privileged? true}
+  {:name :transition/request-payment-with-credits,
+   :actor :actor.role/customer,
+   :actions
+   [{:name :action/update-protected-data}
+    {:name :action/create-pending-booking, :config {:type :time}}
+    {:name :action/privileged-set-line-items}],
+   :to :state/pending-payment,
+   :initial? true,
+   :privileged? true}
   {:name :transition/request-payment-after-inquiry,
    :actor :actor.role/customer,
    :actions
@@ -31,14 +40,17 @@
    :actions
    [{:name :action/calculate-full-refund}
     {:name :action/stripe-refund-payment}
-    ;; Keep this action last in the list of actions for
-    ;; the transition
     {:name :action/decline-booking}],
    :from :state/pending-payment,
    :to :state/payment-expired}
   {:name :transition/confirm-payment,
    :actor :actor.role/customer,
    :actions [{:name :action/stripe-confirm-payment-intent}],
+   :from :state/pending-payment,
+   :to :state/preauthorized}
+  {:name :transition/confirm-payment-with-credits,
+   :actor :actor.role/customer,
+   :actions [],
    :from :state/pending-payment,
    :to :state/preauthorized}
   {:name :transition/accept,
@@ -55,14 +67,22 @@
     {:name :action/stripe-capture-payment-intent}],
    :from :state/preauthorized,
    :to :state/accepted}
+  {:name :transition/accept-with-credits,
+   :actor :actor.role/provider,
+   :actions [{:name :action/accept-booking}],
+   :from :state/preauthorized,
+   :to :state/accepted}
   {:name :transition/decline,
    :actor :actor.role/provider,
    :actions
    [{:name :action/calculate-full-refund}
     {:name :action/stripe-refund-payment}
-    ;; Keep this action last in the list of actions for
-    ;; the transition
     {:name :action/decline-booking}],
+   :from :state/preauthorized,
+   :to :state/declined}
+  {:name :transition/decline-with-credits,
+   :actor :actor.role/provider,
+   :actions [{:name :action/decline-booking}],
    :from :state/preauthorized,
    :to :state/declined}
   {:name :transition/operator-decline,
@@ -70,8 +90,6 @@
    :actions
    [{:name :action/calculate-full-refund}
     {:name :action/stripe-refund-payment}
-    ;; Keep this action last in the list of actions for
-    ;; the transition
     {:name :action/decline-booking}],
    :from :state/preauthorized,
    :to :state/declined}
@@ -87,8 +105,6 @@
    :actions
    [{:name :action/calculate-full-refund}
     {:name :action/stripe-refund-payment}
-    ;; Keep this action last in the list of actions for
-    ;; the transition
     {:name :action/decline-booking}],
    :from :state/preauthorized,
    :to :state/expired}
@@ -109,8 +125,6 @@
    :actions
    [{:name :action/calculate-full-refund}
     {:name :action/stripe-refund-payment}
-    ;; Keep this action last in the list of actions for
-    ;; the transition
     {:name :action/cancel-booking}],
    :from :state/accepted,
    :to :state/cancelled}

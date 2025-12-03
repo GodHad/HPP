@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // Import contexts and util modules
 import { FormattedMessage, intlShape } from '../../util/reactIntl';
 import { pathByRouteName } from '../../util/routes';
 import { isValidCurrencyForTransactionProcess } from '../../util/fieldHelpers.js';
 import { propTypes } from '../../util/types';
-import { ensureTransaction } from '../../util/data';
+import { ensureTransaction, ensureCurrentUser } from '../../util/data';
 import { createSlug } from '../../util/urlHelpers';
 import { isTransactionInitiateListingNotFoundError } from '../../util/errors';
 import {
@@ -30,6 +30,7 @@ import {
   hasPaymentExpired,
   hasTransactionPassedPendingPayment,
   processCheckoutWithPayment,
+  processCheckoutWithCredits,
   setOrderPageInitialValues,
 } from './CheckoutPageTransactionHelpers.js';
 import { getErrorMessages } from './ErrorMessages';
@@ -38,6 +39,7 @@ import StripePaymentForm from './StripePaymentForm/StripePaymentForm';
 import DetailsSideCard from './DetailsSideCard';
 import MobileListingImage from './MobileListingImage';
 import MobileOrderBreakdown from './MobileOrderBreakdown';
+import { fetchMyCredits } from '../../util/creditsApi.js';
 
 import css from './CheckoutPage.module.css';
 
@@ -101,7 +103,7 @@ const prefixPriceVariantProperties = priceVariant => {
  * @param {Object} config app-wide configs. This contains hosted configs too.
  * @returns orderParams.
  */
-const getOrderParams = (pageData, shippingDetails, optionalPaymentParams, config) => {
+const getOrderParams = (pageData, shippingDetails, optionalPaymentParams, config, extraProtectedData) => {
   const quantity = pageData.orderData?.quantity;
   const quantityMaybe = quantity ? { quantity } : {};
   const seats = pageData.orderData?.seats;
@@ -127,6 +129,7 @@ const getOrderParams = (pageData, shippingDetails, optionalPaymentParams, config
       ...deliveryMethodMaybe,
       ...shippingDetails,
       ...priceVariantMaybe,
+      ...extraProtectedData
     },
   };
 
@@ -232,7 +235,7 @@ export const loadInitialDataForStripePayments = ({
   fetchSpeculatedTransactionIfNeeded(orderParams, pageData, fetchSpeculatedTransaction);
 };
 
-const handleSubmit = (values, process, props, stripe, submitting, setSubmitting) => {
+const handleSubmit = (values, process, props, stripe, submitting, setSubmitting, canPayWithCreditsOnlyFlag) => {
   if (submitting) {
     return;
   }
@@ -258,6 +261,7 @@ const handleSubmit = (values, process, props, stripe, submitting, setSubmitting)
     sessionStorageKey,
   } = props;
   const { card, message, paymentMethod: selectedPaymentMethod, formValues } = values;
+  const canPayWithCreditsOnly = !!canPayWithCreditsOnlyFlag;
   const { saveAfterOnetimePayment: saveAfterOnetimePaymentRaw } = formValues;
 
   const saveAfterOnetimePayment =
@@ -294,25 +298,33 @@ const handleSubmit = (values, process, props, stripe, submitting, setSubmitting)
     isPaymentFlowUseSavedCard: selectedPaymentFlow === USE_SAVED_CARD,
     isPaymentFlowPayAndSaveCard: selectedPaymentFlow === PAY_AND_SAVE_FOR_LATER_USE,
     setPageData,
+    canPayWithCreditsOnly
   };
 
   const shippingDetails = getShippingDetailsMaybe(formValues);
   // Note: optionalPaymentParams contains Stripe paymentMethod,
   // but that can also be passed on Step 2
   // stripe.confirmCardPayment(stripe, { payment_method: stripePaymentMethodId })
+
+  const usingStripe = !canPayWithCreditsOnly;
+
   const optionalPaymentParams =
-    selectedPaymentFlow === USE_SAVED_CARD && hasDefaultPaymentMethodSaved
+    usingStripe && selectedPaymentFlow === USE_SAVED_CARD && hasDefaultPaymentMethodSaved
       ? { paymentMethod: stripePaymentMethodId }
-      : selectedPaymentFlow === PAY_AND_SAVE_FOR_LATER_USE
+      : usingStripe && selectedPaymentFlow === PAY_AND_SAVE_FOR_LATER_USE
       ? { setupPaymentMethodForSaving: true }
       : {};
 
   // These are the order parameters for the first payment-related transition
   // which is either initiate-transition or initiate-transition-after-enquiry
-  const orderParams = getOrderParams(pageData, shippingDetails, optionalPaymentParams, config);
+  const extraProtectedData = canPayWithCreditsOnly ? { useCreditsForBooking: true } : {};
+  const orderParams = getOrderParams(pageData, shippingDetails, optionalPaymentParams, config, extraProtectedData);
 
-  // There are multiple XHR calls that needs to be made against Stripe API and Sharetribe Marketplace API on checkout with payments
-  processCheckoutWithPayment(orderParams, requestPaymentParams)
+  const runCheckout = canPayWithCreditsOnly
+    ? processCheckoutWithCredits
+    : processCheckoutWithPayment;
+
+  runCheckout(orderParams, requestPaymentParams)
     .then(response => {
       const { orderId, messageSuccess, paymentMethodSaved } = response;
       setSubmitting(false);
@@ -403,6 +415,10 @@ export const CheckoutPageWithPayment = props => {
   // Initialized stripe library is saved to state - if it's needed at some point here too.
   const [stripe, setStripe] = useState(null);
 
+  const [creditsLoading, setCreditsLoading] = useState(true);
+  const [creditsBalanceCents, setCreditsBalanceCents] = useState(0);
+  const [canPayWithCreditsOnly, setCanPayWithCreditsOnly] = useState(false);
+
   const {
     scrollingDisabled,
     speculateTransactionError,
@@ -466,6 +482,56 @@ export const CheckoutPageWithPayment = props => {
 
   const totalPrice =
     tx?.attributes?.lineItems?.length > 0 ? getFormattedTotalPrice(tx, intl) : null;
+  const user = ensureCurrentUser(currentUser);
+  const isLoggedIn = !!user?.id;
+  const payinTotal = tx?.attributes?.payinTotal;
+  const bookingTotalCents = payinTotal?.amount || 0;
+
+  useEffect(() => {
+    if (!isLoggedIn || !bookingTotalCents) {
+      setCreditsLoading(false);
+      setCreditsBalanceCents(0);
+      setCanPayWithCreditsOnly(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadCredits = async () => {
+      setCreditsLoading(true);
+      try {
+        const result = await fetchMyCredits(user.id.uuid);
+
+        if (cancelled) return;
+
+        let balanceCents = 0;
+
+        if (result && typeof result === 'object') {
+          if (result.raw && typeof result.raw.balanceCents === 'number') {
+            balanceCents = result.raw.balanceCents;
+          } else if (typeof result.credits === 'number') {
+            balanceCents = Math.round(result.credits * 100);
+          }
+        }
+
+        setCreditsBalanceCents(balanceCents);
+        setCanPayWithCreditsOnly(balanceCents > 0 && balanceCents >= bookingTotalCents);
+      } catch (e) {
+        setCreditsBalanceCents(0);
+        setCanPayWithCreditsOnly(false);
+      } finally {
+        if (!cancelled) {
+          setCreditsLoading(false);
+        }
+      }
+    };
+
+    loadCredits();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, user?.id?.uuid, bookingTotalCents]);
 
   const process = processName ? getProcess(processName) : null;
   const transitions = process.transitions;
@@ -601,7 +667,7 @@ export const CheckoutPageWithPayment = props => {
               <StripePaymentForm
                 className={css.paymentForm}
                 onSubmit={values =>
-                  handleSubmit(values, process, props, stripe, submitting, setSubmitting)
+                  handleSubmit(values, process, props, stripe, submitting, setSubmitting, canPayWithCreditsOnly)
                 }
                 inProgress={submitting}
                 formId="CheckoutPagePaymentForm"
@@ -633,6 +699,7 @@ export const CheckoutPageWithPayment = props => {
                 marketplaceName={config.marketplaceName}
                 isBooking={isBookingProcessAlias(transactionProcessAlias)}
                 isFuzzyLocation={config.maps.fuzzy.enabled}
+                canPayWithCreditsOnly={canPayWithCreditsOnly}
               />
             ) : null}
           </section>

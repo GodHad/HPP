@@ -259,15 +259,15 @@ const getDataValidationResult = (transaction, process) => {
  * @returns {JSX.Element}
  */
 
-const withCreditFinalize = (onTransition, transaction, transactionRole) => {
-  return (txId, transitionName, params) => {
+const withCreditFinalize = (onTransition, getTransaction, transactionRole) => {
+  return async (txId, transitionName, params) => {
+    const transaction = getTransaction();
+
     if (!transaction || !transaction.id) {
       return onTransition(txId, transitionName, params);
     }
 
-    const processName = resolveLatestProcessName(
-      transaction?.attributes?.processName
-    );
+    const processName = resolveLatestProcessName(transaction?.attributes?.processName);
 
     let process = null;
     try {
@@ -278,29 +278,44 @@ const withCreditFinalize = (onTransition, transaction, transactionRole) => {
 
     const isProviderRole = transactionRole === PROVIDER;
     const isBooking = isBookingProcess(processName);
-    const acceptTransition = process?.transitions?.ACCEPT;
-    const declineTransition = process?.transitions?.DECLINE;
+
+    const transitions = process?.transitions || {};
+    const acceptTransition = transitions.ACCEPT;
+    const declineTransition = transitions.DECLINE;
+    const acceptWithCredits = transitions.ACCEPT_WITH_CREDITS;
+    const declineWithCredits = transitions.DECLINE_WITH_CREDITS;
+
+    const useCreditsForBooking =
+      transaction?.attributes?.protectedData?.useCreditsForBooking === true;
+
+    const isAccepting = transitionName === acceptTransition;
+    const isDeclining = transitionName === declineTransition;
 
     const shouldFinalize =
       isBooking &&
+      useCreditsForBooking &&
       isProviderRole &&
-      (transitionName === acceptTransition ||
-        transitionName === declineTransition);
+      (isAccepting || isDeclining);
 
-    if (!shouldFinalize) {
-      return onTransition(txId, transitionName, params);
+    let finalTransitionName = transitionName;
+
+    if (shouldFinalize && isAccepting && acceptWithCredits) {
+      finalTransitionName = acceptWithCredits;
     }
 
-    const decision =
-      transitionName === acceptTransition ? 'accepted' : 'declined';
+    if (shouldFinalize && isDeclining && declineWithCredits) {
+      finalTransitionName = declineWithCredits;
+    }
+    if (!shouldFinalize) {
+      return onTransition(txId, finalTransitionName, params);
+    }
+
+    const decision = isAccepting ? 'accepted' : 'declined';
     const sharetribeUserId = transaction?.customer?.id?.uuid;
     const bookingId = transaction?.id?.uuid;
 
     if (!sharetribeUserId || !bookingId) {
-      console.error(
-        'Missing sharetribeUserId or bookingId for credit finalize'
-      );
-      return onTransition(txId, transitionName, params);
+      return onTransition(txId, finalTransitionName, params);
     }
 
     return fetch(`${CREDITS_API_BASE}/api/credits/booking-finalize`, {
@@ -314,16 +329,12 @@ const withCreditFinalize = (onTransition, transaction, transactionRole) => {
           try {
             const body = await res.json();
             if (body && body.error) message = body.error;
-          } catch (e) {
-          }
+          } catch (e) {}
           console.error(message);
           throw new Error(message);
         }
 
-        console.log(
-          `booking-finalize (${decision}) OK for tx ${bookingId}, now running transition ${transitionName}`
-        );
-        return onTransition(txId, transitionName, params);
+        return onTransition(txId, finalTransitionName, params);
       })
       .catch(err => {
         console.error('booking-finalize error', err);
@@ -648,7 +659,7 @@ export const TransactionPageComponent = props => {
 
   const wrappedOnTransition = withCreditFinalize(
     onTransition,
-    transaction,
+    () => props.transaction,
     transactionRole
   );
 

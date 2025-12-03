@@ -19,6 +19,8 @@ export const transitions = {
   // After this transition, the actual payment must be made on client-side directly to Stripe.
   REQUEST_PAYMENT: 'transition/request-payment',
 
+  REQUEST_PAYMENT_WITH_CREDITS: 'transition/request-payment-with-credits',
+
   // A customer can also initiate a transaction with an inquiry, and
   // then transition that with a request.
   INQUIRE: 'transition/inquire',
@@ -29,6 +31,8 @@ export const transitions = {
   // to tell that the payment is confirmed.
   CONFIRM_PAYMENT: 'transition/confirm-payment',
 
+  CONFIRM_PAYMENT_WITH_CREDITS: 'transition/confirm-payment-with-credits',
+
   // If the payment is not confirmed in the time limit set in transaction process (by default 15min)
   // the transaction will expire automatically.
   EXPIRE_PAYMENT: 'transition/expire-payment',
@@ -37,6 +41,8 @@ export const transitions = {
   // SalePage, it is transitioned with the accept or decline transition.
   ACCEPT: 'transition/accept',
   DECLINE: 'transition/decline',
+  ACCEPT_WITH_CREDITS: 'transition/accept-with-credits',
+  DECLINE_WITH_CREDITS: 'transition/decline-with-credits',
 
   // The operator can accept or decline the offer on behalf of the provider
   OPERATOR_ACCEPT: 'transition/operator-accept',
@@ -113,6 +119,7 @@ export const graph = {
       on: {
         [transitions.INQUIRE]: states.INQUIRY,
         [transitions.REQUEST_PAYMENT]: states.PENDING_PAYMENT,
+        [transitions.REQUEST_PAYMENT_WITH_CREDITS]: states.PENDING_PAYMENT,
       },
     },
     [states.INQUIRY]: {
@@ -125,6 +132,7 @@ export const graph = {
       on: {
         [transitions.EXPIRE_PAYMENT]: states.PAYMENT_EXPIRED,
         [transitions.CONFIRM_PAYMENT]: states.PREAUTHORIZED,
+        [transitions.CONFIRM_PAYMENT_WITH_CREDITS]: states.PREAUTHORIZED,
       },
     },
 
@@ -132,9 +140,11 @@ export const graph = {
     [states.PREAUTHORIZED]: {
       on: {
         [transitions.DECLINE]: states.DECLINED,
+        [transitions.DECLINE_WITH_CREDITS]: states.DECLINED,
         [transitions.OPERATOR_DECLINE]: states.DECLINED,
         [transitions.EXPIRE]: states.EXPIRED,
         [transitions.ACCEPT]: states.ACCEPTED,
+        [transitions.ACCEPT_WITH_CREDITS]: states.ACCEPTED,
         [transitions.OPERATOR_ACCEPT]: states.ACCEPTED,
       },
     },
@@ -214,7 +224,7 @@ export const isProviderReview = transition => {
 // should go through the local API endpoints, or if using JS SDK is
 // enough.
 export const isPrivileged = transition => {
-  return [transitions.REQUEST_PAYMENT, transitions.REQUEST_PAYMENT_AFTER_INQUIRY].includes(
+  return [transitions.REQUEST_PAYMENT, transitions.REQUEST_PAYMENT_AFTER_INQUIRY, transitions.REQUEST_PAYMENT_WITH_CREDITS].includes(
     transition
   );
 };

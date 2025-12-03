@@ -320,11 +320,12 @@ class StripePaymentForm extends Component {
         hasHandledCardPayment,
         defaultPaymentMethod,
         loadingData,
+        canPayWithCreditsOnly
       } = this.props;
       this.stripe = window.Stripe(publishableKey);
       onStripeInitialized(this.stripe);
 
-      if (!(hasHandledCardPayment || defaultPaymentMethod || loadingData)) {
+      if (!(hasHandledCardPayment || defaultPaymentMethod || loadingData || canPayWithCreditsOnly)) {
         this.initializeStripeElement();
       }
     }
@@ -418,17 +419,23 @@ class StripePaymentForm extends Component {
       formId,
       hasHandledCardPayment,
       defaultPaymentMethod,
+      canPayWithCreditsOnly
     } = this.props;
     const { initialMessage } = values;
     const { cardValueValid, paymentMethod } = this.state;
     const hasDefaultPaymentMethod = defaultPaymentMethod?.id;
-    const selectedPaymentMethod = getPaymentMethod(paymentMethod, hasDefaultPaymentMethod);
-    const { onetimePaymentNeedsAttention } = checkOnetimePaymentFields(
-      cardValueValid,
-      selectedPaymentMethod,
-      hasDefaultPaymentMethod,
-      hasHandledCardPayment
-    );
+    let onetimePaymentNeedsAttention = false;
+    if(!canPayWithCreditsOnly) {
+      const selectedPaymentMethod = getPaymentMethod(paymentMethod, hasDefaultPaymentMethod);
+      const res = checkOnetimePaymentFields(
+        cardValueValid,
+        selectedPaymentMethod,
+        hasDefaultPaymentMethod,
+        hasHandledCardPayment
+      );
+      onetimePaymentNeedsAttention = res.onetimePaymentNeedsAttention;
+    }
+    
 
     if (inProgress || onetimePaymentNeedsAttention) {
       // Already submitting or card value incomplete/invalid
@@ -444,6 +451,7 @@ class StripePaymentForm extends Component {
         paymentMethod,
         ensurePaymentMethodCard(defaultPaymentMethod).id
       ),
+      canPayWithCreditsOnly: !!canPayWithCreditsOnly
     };
     onSubmit(params);
   }
@@ -477,22 +485,26 @@ class StripePaymentForm extends Component {
       isBooking,
       isFuzzyLocation,
       values,
+      canPayWithCreditsOnly
     } = formRenderProps;
 
     this.finalFormAPI = formApi;
+    const creditsOnly = !!canPayWithCreditsOnly;
 
     const ensuredDefaultPaymentMethod = ensurePaymentMethodCard(defaultPaymentMethod);
     const billingDetailsNeeded = !(hasHandledCardPayment || confirmPaymentError);
 
     const { cardValueValid, paymentMethod } = this.state;
-    const hasDefaultPaymentMethod = ensuredDefaultPaymentMethod.id;
-    const selectedPaymentMethod = getPaymentMethod(paymentMethod, hasDefaultPaymentMethod);
-    const { onetimePaymentNeedsAttention, showOnetimePaymentFields } = checkOnetimePaymentFields(
-      cardValueValid,
-      selectedPaymentMethod,
-      hasDefaultPaymentMethod,
-      hasHandledCardPayment
-    );
+    const hasDefaultPaymentMethod = creditsOnly ? false : ensuredDefaultPaymentMethod.id;
+    const selectedPaymentMethod = creditsOnly ? 'creditsOnly' : getPaymentMethod(paymentMethod, hasDefaultPaymentMethod);
+    const { onetimePaymentNeedsAttention, showOnetimePaymentFields } = creditsOnly
+      ? { onetimePaymentNeedsAttention: false, showOnetimePaymentFields: false }
+      : checkOnetimePaymentFields(
+        cardValueValid,
+        selectedPaymentMethod,
+        hasDefaultPaymentMethod,
+        hasHandledCardPayment
+      );
 
     const submitDisabled = invalid || onetimePaymentNeedsAttention || submitInProgress;
     const hasCardError = this.state.error && !submitInProgress;
@@ -575,7 +587,7 @@ class StripePaymentForm extends Component {
           intl={intl}
         />
 
-        {billingDetailsNeeded && !loadingData ? (
+        {billingDetailsNeeded && !loadingData && !creditsOnly ? (
           <React.Fragment>
             {hasDefaultPaymentMethod ? (
               <PaymentMethodSelector

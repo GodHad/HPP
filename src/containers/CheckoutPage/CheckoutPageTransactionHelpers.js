@@ -195,6 +195,12 @@ export const processCheckoutWithPayment = (orderParams, extraPaymentParams) => {
     stripeCustomer,
     stripePaymentMethodId,
   } = extraPaymentParams;
+
+  if (extraPaymentParams.canPayWithCreditsOnly) {
+    throw new Error(
+      'processCheckoutWithPayment called with canPayWithCreditsOnly = true. Credits-only bookings must use processCheckoutWithCredits.'
+    );
+  }
   const storedTx = ensureTransaction(pageData.transaction);
 
   const ensuredStripeCustomer = ensureStripeCustomer(stripeCustomer);
@@ -350,6 +356,108 @@ export const processCheckoutWithPayment = (orderParams, extraPaymentParams) => {
   );
 
   return handlePaymentIntentCreation(orderParams);
+};
+
+export const processCheckoutWithCredits = (orderParams, extraPaymentParams) => {
+  const {
+    message,
+    onInitiateOrder,
+    onConfirmPayment,
+    onSendMessage,
+    pageData,
+    process,
+    setPageData,
+    sessionStorageKey,
+  } = extraPaymentParams;
+
+  const storedTx = ensureTransaction(pageData.transaction);
+  const processAlias = pageData?.listing?.attributes?.publicData?.transactionProcessAlias;
+
+  const fnRequestPayment = fnParams => {
+    const requestTransition = process.transitions.REQUEST_PAYMENT_WITH_CREDITS;
+
+    const existing = storedTx?.id ? storedTx : null;
+    const lastTransition = existing?.attributes?.lastTransition;
+    const hasLineItems = !!existing?.attributes?.lineItems?.length;
+    const hasStripeIntents = !!existing?.attributes?.protectedData?.stripePaymentIntents;
+
+    // If a tx already exists and has progressed, we must start a new tx for credits.
+    const txAlreadyInitiated = !!lastTransition || hasLineItems || hasStripeIntents;
+
+    const txIdForInitiate = txAlreadyInitiated ? null : existing?.id || null;
+
+    // If you want, also clear persisted transaction if it's already initiated:
+    if (txAlreadyInitiated) {
+      try {
+        window?.sessionStorage?.removeItem(sessionStorageKey);
+      } catch (e) {}
+      setPageData({ ...pageData, transaction: null });
+    }
+
+    const isPrivileged = process.isPrivileged(requestTransition);
+
+    const orderPromise = onInitiateOrder(
+      fnParams,
+      processAlias,
+      txIdForInitiate,       // ✅ null => create new tx
+      requestTransition,
+      isPrivileged
+    );
+
+    orderPromise.then(order => {
+      persistTransaction(order, pageData, storeData, setPageData, sessionStorageKey);
+    });
+
+    return orderPromise;
+  };
+
+  const fnConfirmPayment = order => {
+    const transactionId = order?.id;
+    const transitionName = process.transitions.CONFIRM_PAYMENT_WITH_CREDITS;
+
+    const isTransitionedAlready =
+      order?.attributes?.lastTransition === transitionName;
+
+    const orderPromise = isTransitionedAlready
+      ? Promise.resolve(order)
+      : onConfirmPayment(transactionId, transitionName, {});
+
+    orderPromise.then(orderAfterConfirm => {
+      persistTransaction(orderAfterConfirm, pageData, storeData, setPageData, sessionStorageKey);
+    });
+
+    return orderPromise;
+  };
+
+
+  //////////////////////////////////
+  // Step 3: send initial message //
+  //////////////////////////////////
+  const fnSendMessage = order => {
+    const orderId = order?.id;
+    return onSendMessage({ id: orderId, message });
+  };
+
+  ////////////////////////////////////////////////////////////
+  // Step 4: mark payment method as "saved" for compatibility
+  ////////////////////////////////////////////////////////////
+  const fnMarkPaymentMethodSaved = fnParams => {
+    // Keep response shape compatible with processCheckoutWithPayment:
+    // { orderId, messageSuccess, paymentMethodSaved }
+    return Promise.resolve({ ...fnParams, paymentMethodSaved: true });
+  };
+
+  const applyAsync = (acc, val) => acc.then(val);
+  const composeAsync = (...funcs) => x => funcs.reduce(applyAsync, Promise.resolve(x));
+
+  const handleCreditsCheckout = composeAsync(
+    fnRequestPayment,
+    fnConfirmPayment,
+    fnSendMessage,
+    fnMarkPaymentMethodSaved
+  );
+
+  return handleCreditsCheckout(orderParams);
 };
 
 /**

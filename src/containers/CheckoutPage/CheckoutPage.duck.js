@@ -5,7 +5,7 @@ import { denormalisedResponseEntities } from '../../util/data';
 import { storableError } from '../../util/errors';
 import * as log from '../../util/log';
 import { setCurrentUserHasOrders, fetchCurrentUser } from '../../ducks/user.duck';
-import { useCreditsForBooking, fetchMyCredits } from '../../util/creditsApi';
+import { useCreditsForBooking } from '../../util/creditsApi';
 import { addAvailabilityExceptionThunk } from '../EditListingPage/EditListingPage.duck';
 
 // ================ Async thunks ================ //
@@ -129,15 +129,8 @@ const confirmPaymentPayloadCreator = async (
   { transactionId, transitionName, transitionParams = {} },
   { dispatch, getState, extra: sdk, rejectWithValue }
 ) => {
-  const bodyParams = {
-    id: transactionId,
-    transition: transitionName,
-    params: transitionParams,
-  };
-  const queryParams = {
-    include: ['booking', 'provider'],
-    expand: true,
-  };
+  const bodyParams = { id: transactionId, transition: transitionName, params: transitionParams };
+  const queryParams = { include: ['booking', 'provider'], expand: true };
 
   try {
     const response = await sdk.transactions.transition(bodyParams, queryParams);
@@ -148,34 +141,20 @@ const confirmPaymentPayloadCreator = async (
       const currentUser = state.user?.currentUser;
       const sharetribeUserId = currentUser?.id?.uuid;
       const payinTotal = order?.attributes?.payinTotal;
+      const useCredits =
+        order?.attributes?.protectedData?.useCreditsForBooking === true;
 
-      if(sharetribeUserId && payinTotal && payinTotal.amount > 0) {
+      if (useCredits && sharetribeUserId && payinTotal && payinTotal.amount > 0) {
         await useCreditsForBooking(sharetribeUserId, order.id.uuid, payinTotal.amount);
       }
     } catch (e) {
-      log.error(e, 'Credits-booking-debit-failed', {txId: order?.id?.uuid});
     }
 
     return order;
-  } catch(e) {
-    const transactionIdMayBe = transactionId ? {transactionId: transactionId.uuid} : {};
-    log.error(e, 'Initiate-order-failed', transactionIdMaybe);
+  } catch (e) {
+    const transactionIdMaybe = transactionId ? { transactionId: transactionId.uuid } : {};
     return rejectWithValue(storableError(e));
   }
-
-  return sdk.transactions
-    .transition(bodyParams, queryParams)
-    .then(response => {
-      const order = response.data.data;
-      return order;
-    })
-    .catch(e => {
-      const transactionIdMaybe = transactionId ? { transactionId: transactionId.uuid } : {};
-      log.error(e, 'initiate-order-failed', {
-        ...transactionIdMaybe,
-      });
-      return rejectWithValue(storableError(e));
-    });
 };
 
 export const confirmPaymentThunk = createAsyncThunk(
